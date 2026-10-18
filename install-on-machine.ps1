@@ -74,13 +74,27 @@ foreach ($prof in $profiles) {
 
     $oldXpi = Join-Path $extDir "$oldApiAddonId.xpi"
     if (Test-Path $oldXpi) {
-        Remove-Item $oldXpi -Force
-        Write-Host "  [-] Removed old API version ($oldApiAddonId.xpi)" -ForegroundColor Yellow
+        try {
+            Remove-Item $oldXpi -Force -ErrorAction Stop
+            Write-Host "  [-] Removed old API version ($oldApiAddonId.xpi)" -ForegroundColor Yellow
+        } catch {
+            Write-Host "  [!] Old API XPI is in use by running Firefox; close Firefox and re-run if needed" -ForegroundColor Yellow
+        }
     }
 
     $destXpi = Join-Path $extDir "$addonId.xpi"
-    Copy-Item -Path $xpiSource -Destination $destXpi -Force
-    Write-Host "  [+] Installed extension: $destXpi" -ForegroundColor Green
+    try {
+        Copy-Item -Path $xpiSource -Destination $destXpi -Force -ErrorAction Stop
+        Write-Host "  [+] Installed extension: $destXpi" -ForegroundColor Green
+    } catch {
+        $stagedDir = Join-Path $extDir "staged"
+        if (-not (Test-Path $stagedDir)) {
+            New-Item -ItemType Directory -Path $stagedDir -Force | Out-Null
+        }
+        $stagedXpi = Join-Path $stagedDir "$addonId.xpi"
+        Copy-Item -Path $xpiSource -Destination $stagedXpi -Force
+        Write-Host "  [+] Extension is currently active in Firefox; staged update for next restart: $stagedXpi" -ForegroundColor Green
+    }
 }
 
 Write-Host "`nDone! Restart Firefox to activate the extension and write rules to userChrome.css." -ForegroundColor Green
