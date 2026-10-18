@@ -1,0 +1,17 @@
+{
+  "addons": {
+    "stg-native-groups-css@olegius.org": {
+      "updates": [
+        {
+          "version": "1.0.0",
+          "update_link": "https://raw.githubusercontent.com/olegius88/stg-native-groups-css-fix/main/stg-native-groups-css.xpi",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "128.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

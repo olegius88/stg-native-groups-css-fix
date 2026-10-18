@@ -1,0 +1,42 @@
+{
+  "manifest_version": 2,
+  "name": "STG Native Tab Groups CSS Fix (userChrome)",
+  "version": "1.0.0",
+  "description": "Автоматически прописывает CSS-исправление пустых плашек нативных групп (для Simple Tab Groups) в chrome/userChrome.css и применяет его на лету без тормозов. При отключении или удалении откатывает свои правки.",
+  "author": "Oleg",
+  "homepage_url": "https://github.com/olegius88/stg-native-groups-css-fix",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "stg-native-groups-css@olegius.org",
+      "strict_min_version": "128.0",
+      "update_url": "https://raw.githubusercontent.com/olegius88/stg-native-groups-css-fix/main/updates.json"
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "browser_action": {
+    "default_icon": "icons/icon.svg",
+    "default_title": "STG Native Groups CSS (userChrome)",
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "experiment_apis": {
+    "userChromeManager": {
+      "schema": "experiments/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["userChromeManager"]],
+        "script": "experiments/api.js"
+      }
+    }
+  }
+}

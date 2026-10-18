@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>STG Native Tab Groups CSS Fix (userChrome)</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-title">
+      <img src="../icons/icon.svg" width="22" height="22" alt="icon">
+      <span>STG Native Groups CSS (userChrome)</span>
+    </div>
+    <label class="switch" title="Включить / выключить CSS-правила (при выключении удаляет блок из userChrome.css)">
+      <input type="checkbox" id="enabled">
+      <span class="slider"></span>
+    </label>
+  </header>
+
+  <div id="status-bar" class="status-bar">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">Проверка статуса...</span>
+  </div>
+
+  <main class="content" id="main-content">
+    <section class="section">
+      <div class="section-label">CSS-правила для chrome/userChrome.css</div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="hideEmptyGroupHeaders">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Скрывать пустые плашки групп (STG фикс)</div>
+          <div class="checkbox-desc">Убирает синий квадрат в 0 мс через CSS, когда все вкладки нативной группы скрыты в другой группе STG</div>
+        </div>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="hideOverflowCounter">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Скрывать счетчик свернутых вкладок (+N)</div>
+          <div class="checkbox-desc">Прячет индикатор количества вкладок рядом со свернутой группой</div>
+        </div>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="hideGroupLine">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Скрывать цветную линию подчеркивания</div>
+          <div class="checkbox-desc">Убирает цветную полосу под вкладками нативной группы</div>
+        </div>
+      </label>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="compactLabels">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Компактные плашки групп</div>
+          <div class="checkbox-desc">Уменьшает горизонтальные отступы у заголовков нативных групп</div>
+        </div>
+      </label>
+    </section>
+
+    <section class="section">
+      <div class="section-header-row">
+        <label class="section-label" for="customCSS">Дополнительный CSS (записывается в userChrome.css)</label>
+      </div>
+      <textarea id="customCSS" class="textarea-input" rows="2" placeholder="/* Любые свои CSS-правила для интерфейса Firefox */"></textarea>
+    </section>
+
+    <section class="section">
+      <div class="section-label">Файл профиля</div>
+      <div id="file-path-box" class="path-box">Определение пути...</div>
+    </section>
+
+    <details class="preview-box">
+      <summary>Показать блок в userChrome.css</summary>
+      <pre id="generated-css-preview"></pre>
+    </details>
+  </main>
+
+  <footer class="footer">
+    <button id="rollback-btn" class="btn-danger" type="button" title="Удалить блок из userChrome.css и выгрузить стили из памяти">Откатить из userChrome</button>
+    <button id="reset-btn" class="btn-secondary" type="button">По умолчанию</button>
+    <span id="save-indicator" class="save-indicator">Записано</span>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
