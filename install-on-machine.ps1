@@ -87,13 +87,16 @@ foreach ($prof in $profiles) {
         Copy-Item -Path $xpiSource -Destination $destXpi -Force -ErrorAction Stop
         Write-Host "  [+] Installed extension: $destXpi" -ForegroundColor Green
     } catch {
-        $stagedDir = Join-Path $extDir "staged"
-        if (-not (Test-Path $stagedDir)) {
-            New-Item -ItemType Directory -Path $stagedDir -Force | Out-Null
+        # File is locked in memory by running Firefox - rename old file and copy new one
+        $bakXpi = Join-Path $extDir "$addonId.xpi.bak"
+        try {
+            Remove-Item $bakXpi -Force -ErrorAction SilentlyContinue
+            Move-Item -Path $destXpi -Destination $bakXpi -Force -ErrorAction Stop
+            Copy-Item -Path $xpiSource -Destination $destXpi -Force -ErrorAction Stop
+            Write-Host "  [+] Updated running extension via rename-swap: $destXpi" -ForegroundColor Green
+        } catch {
+            Write-Host "  [!] Could not replace locked XPI: $($_.Exception.Message)" -ForegroundColor Yellow
         }
-        $stagedXpi = Join-Path $stagedDir "$addonId.xpi"
-        Copy-Item -Path $xpiSource -Destination $stagedXpi -Force
-        Write-Host "  [+] Extension is currently active in Firefox; staged update for next restart: $stagedXpi" -ForegroundColor Green
     }
 }
 
