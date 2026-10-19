@@ -2,10 +2,8 @@
 
 const ids = [
   "enabled",
-  "pinFirstTabInCollapsedGroup",
-  "pinFirstTabCompact",
-  "pinKeywords",
-  "miniIconsMode",
+  "pinInGroupEnabled",
+  "pinInGroupCompact",
   "hideEmptyGroupHeaders",
   "hideOverflowCounter",
   "hideGroupLine",
@@ -14,13 +12,67 @@ const ids = [
 ];
 
 let customCssTimer = null;
-let keywordsTimer = null;
 
 function showSavedIndicator(msg = "Записано") {
   const el = document.getElementById("save-indicator");
+  if (!el) return;
   el.textContent = msg;
   el.classList.add("visible");
   setTimeout(() => el.classList.remove("visible"), 1400);
+}
+
+function renderPinnedTabs(pinnedTabs = []) {
+  const badge = document.getElementById("pinned-count-badge");
+  const list = document.getElementById("pinned-tabs-list");
+  if (!badge || !list) return;
+
+  badge.textContent = pinnedTabs.length;
+
+  if (pinnedTabs.length === 0) {
+    list.innerHTML = `<div class="empty-pinned">Пока нет закрепленных вкладок.<br>Нажмите ПКМ по вкладке в группе &rarr; «📌 Закрепить в этой группе»</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  for (const t of pinnedTabs) {
+    const row = document.createElement("div");
+    row.className = "pinned-tab-row";
+
+    const fav = document.createElement("img");
+    fav.className = "pinned-tab-fav";
+    fav.src = t.favIconUrl || "../icons/icon.svg";
+    fav.alt = "";
+
+    const info = document.createElement("div");
+    info.className = "pinned-tab-info";
+
+    const title = document.createElement("div");
+    title.className = "pinned-tab-title";
+    title.textContent = t.title || t.url || "Без названия";
+    title.title = t.title || t.url;
+
+    const grp = document.createElement("div");
+    grp.className = "pinned-tab-group";
+    grp.textContent = t.groupTitle ? `Группа: ${t.groupTitle}` : `Вкладка #${t.id}`;
+
+    info.appendChild(title);
+    info.appendChild(grp);
+
+    const unpinBtn = document.createElement("button");
+    unpinBtn.className = "pinned-tab-unpin-btn";
+    unpinBtn.type = "button";
+    unpinBtn.textContent = "✖";
+    unpinBtn.title = "Открепить вкладку из группы";
+    unpinBtn.addEventListener("click", async () => {
+      await browser.runtime.sendMessage({ action: "unpinTab", tabId: t.id });
+      await refreshStatus();
+    });
+
+    row.appendChild(fav);
+    row.appendChild(info);
+    row.appendChild(unpinBtn);
+    list.appendChild(row);
+  }
 }
 
 async function refreshStatus() {
@@ -61,15 +113,15 @@ async function refreshStatus() {
     dot.classList.add("warn");
     text.textContent = "Не выбрано ни одного CSS-правила";
   }
+
+  renderPinnedTabs(res.pinnedTabs || []);
 }
 
 async function saveCurrentForm() {
   const patch = {
     enabled: document.getElementById("enabled").checked,
-    pinFirstTabInCollapsedGroup: document.getElementById("pinFirstTabInCollapsedGroup").checked,
-    pinFirstTabCompact: document.getElementById("pinFirstTabCompact").checked,
-    pinKeywords: document.getElementById("pinKeywords").value,
-    miniIconsMode: document.getElementById("miniIconsMode").checked,
+    pinInGroupEnabled: document.getElementById("pinInGroupEnabled").checked,
+    pinInGroupCompact: document.getElementById("pinInGroupCompact").checked,
     hideEmptyGroupHeaders: document.getElementById("hideEmptyGroupHeaders").checked,
     hideOverflowCounter: document.getElementById("hideOverflowCounter").checked,
     hideGroupLine: document.getElementById("hideGroupLine").checked,
@@ -86,10 +138,8 @@ async function initPopup() {
   const s = res.settings;
 
   document.getElementById("enabled").checked = !!s.enabled;
-  document.getElementById("pinFirstTabInCollapsedGroup").checked = !!s.pinFirstTabInCollapsedGroup;
-  document.getElementById("pinFirstTabCompact").checked = !!s.pinFirstTabCompact;
-  document.getElementById("pinKeywords").value = s.pinKeywords || "";
-  document.getElementById("miniIconsMode").checked = !!s.miniIconsMode;
+  document.getElementById("pinInGroupEnabled").checked = !!s.pinInGroupEnabled;
+  document.getElementById("pinInGroupCompact").checked = !!s.pinInGroupCompact;
   document.getElementById("hideEmptyGroupHeaders").checked = !!s.hideEmptyGroupHeaders;
   document.getElementById("hideOverflowCounter").checked = !!s.hideOverflowCounter;
   document.getElementById("hideGroupLine").checked = !!s.hideGroupLine;
@@ -100,15 +150,11 @@ async function initPopup() {
 
   for (const id of ids) {
     const el = document.getElementById(id);
+    if (!el) continue;
     if (id === "customCSS") {
       el.addEventListener("input", () => {
         clearTimeout(customCssTimer);
         customCssTimer = setTimeout(saveCurrentForm, 350);
-      });
-    } else if (id === "pinKeywords") {
-      el.addEventListener("input", () => {
-        clearTimeout(keywordsTimer);
-        keywordsTimer = setTimeout(saveCurrentForm, 350);
       });
     } else {
       el.addEventListener("change", saveCurrentForm);

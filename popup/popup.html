@@ -23,39 +23,43 @@
   </div>
 
   <main class="content" id="main-content">
+    <!-- Секция закрепления вкладок внутри групп -->
     <section class="section">
-      <div class="section-label">📌 Закрепление вкладок внутри групп</div>
+      <div class="section-label">📌 Закрепление вкладок внутри групп (через ПКМ)</div>
+
+      <div class="tip-box">
+        Кликните <b>правой кнопкой мыши</b> по любой вкладке в нативной группе и выберите:
+        <br><b>«📌 Закрепить в этой группе»</b>.
+      </div>
 
       <label class="checkbox-row">
-        <input type="checkbox" id="pinFirstTabInCollapsedGroup">
+        <input type="checkbox" id="pinInGroupEnabled">
         <div class="checkbox-text">
-          <div class="checkbox-title">Закреплять вкладку внутри группы (не прятать неактивную)</div>
-          <div class="checkbox-desc">Когда группа свернута, первая вкладка группы остается на панели задач и не пропадает при переходе на другие вкладки</div>
+          <div class="checkbox-title">Включить показ закрепленных вкладок в свернутых группах</div>
+          <div class="checkbox-desc">Закрепленные через контекстное меню вкладки остаются на панели даже когда группа свернута</div>
         </div>
       </label>
 
       <label class="checkbox-row sub-checkbox">
-        <input type="checkbox" id="pinFirstTabCompact">
+        <input type="checkbox" id="pinInGroupCompact">
         <div class="checkbox-text">
-          <div class="checkbox-title">Компактный размер закрепленной вкладки (только иконка)</div>
-          <div class="checkbox-desc">Сжимает неактивную закрепленную вкладку до размера фавиконки (как стандартная pinned tab) для экономии места</div>
+          <div class="checkbox-title">Компактный размер (только иконка, как pinned tab)</div>
+          <div class="checkbox-desc">Когда вкладка неактивна, сжимает её до значка 44px для экономии места</div>
         </div>
       </label>
 
-      <div class="input-block">
-        <label class="input-label" for="pinKeywords">Ключевые слова для закрепления по названию (через запятую):</label>
-        <input type="text" id="pinKeywords" class="text-input" placeholder="Например: Чат, sendapi">
+      <div class="pinned-tabs-container">
+        <div class="pinned-tabs-header">
+          <span>Закрепленные сейчас вкладки:</span>
+          <span id="pinned-count-badge" class="badge">0</span>
+        </div>
+        <div id="pinned-tabs-list" class="pinned-tabs-list">
+          <div class="empty-pinned">Пока нет закрепленных вкладок</div>
+        </div>
       </div>
-
-      <label class="checkbox-row">
-        <input type="checkbox" id="miniIconsMode">
-        <div class="checkbox-text">
-          <div class="checkbox-title">Режим мини-иконок для всех вкладок свернутой группы</div>
-          <div class="checkbox-desc">Вместо полного скрытия сворачивает все вкладки группы в аккуратный ряд мини-значков</div>
-        </div>
-      </label>
     </section>
 
+    <!-- Секция оформления нативных групп -->
     <section class="section">
       <div class="section-label">CSS-стили оформления нативных групп</div>
 

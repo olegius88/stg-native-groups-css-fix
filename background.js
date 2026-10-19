@@ -3,16 +3,16 @@
 const DEFAULT_SETTINGS = {
   enabled: true,
   hideEmptyGroupHeaders: true,
+  pinInGroupEnabled: true,
+  pinInGroupCompact: true,
   hideOverflowCounter: false,
   hideGroupLine: false,
   compactLabels: false,
-  pinFirstTabInCollapsedGroup: true,
-  pinFirstTabCompact: true,
-  pinKeywords: "Чат",
-  miniIconsMode: false,
   customCSS: ""
 };
 
+const SESSION_PIN_KEY = "group_pinned_v1";
+const pinnedTabIdsSet = new Set();
 let currentSettings = { ...DEFAULT_SETTINGS };
 
 function buildCSS(settings) {
@@ -29,57 +29,38 @@ function buildCSS(settings) {
 }`);
   }
 
-  if (settings.pinFirstTabInCollapsedGroup) {
-    if (settings.pinFirstTabCompact) {
-      rules.push(`/* Закреплять первую вкладку свернутой группы как компактную иконку (pinned в группе) */
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab:first-of-type {
+  if (settings.pinInGroupEnabled) {
+    if (settings.pinInGroupCompact) {
+      rules.push(`/* Закрепленные вручную вкладки внутри свернутых групп (компактный вид: фавиконка) */
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"] {
     display: flex !important;
     visibility: visible !important;
+}
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([selected]) {
     max-width: 44px !important;
     min-width: 40px !important;
     padding-inline: 4px !important;
 }
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab:first-of-type:not([selected]) .tab-label-container {
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([selected]) .tab-label-container {
     display: none !important;
+}
+#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"] .tab-icon-image {
+    outline: 2px solid #10b981 !important;
+    outline-offset: 1px !important;
+    border-radius: 4px !important;
 }`);
     } else {
-      rules.push(`/* Закреплять первую вкладку свернутой группы (всегда видима, даже когда неактивна) */
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab:first-of-type {
+      rules.push(`/* Закрепленные вручную вкладки внутри свернутых групп (полный размер) */
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"] {
     display: flex !important;
     visibility: visible !important;
-}`);
-    }
-  }
-
-  if (settings.pinKeywords && settings.pinKeywords.trim()) {
-    const words = settings.pinKeywords
-      .split(/[,;]+/)
-      .map(w => w.trim())
-      .filter(Boolean);
-    if (words.length > 0) {
-      const selectors = words
-        .map(w => `#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab:is([label*="${w}" i], [title*="${w}" i])`)
-        .join(",\n");
-      rules.push(`/* Не скрывать вкладки с ключевыми словами (${words.join(", ")}) внутри свернутых групп */
-${selectors} {
-    display: flex !important;
-    visibility: visible !important;
-}`);
-    }
-  }
-
-  if (settings.miniIconsMode) {
-    rules.push(`/* Показывать все вкладки свернутой группы как мини-значки (вместо полного скрытия) */
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab {
-    display: flex !important;
-    visibility: visible !important;
-    max-width: 44px !important;
-    min-width: 38px !important;
-    padding-inline: 3px !important;
 }
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab:not([selected]) .tab-label-container {
-    display: none !important;
+#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"] .tab-icon-image {
+    outline: 2px solid #10b981 !important;
+    outline-offset: 1px !important;
+    border-radius: 4px !important;
 }`);
+    }
   }
 
   if (settings.hideOverflowCounter) {
@@ -118,8 +99,70 @@ async function updateBadge() {
   if (!currentSettings.enabled) {
     await browser.browserAction.setBadgeText({ text: "OFF" });
     await browser.browserAction.setBadgeBackgroundColor({ color: "#64748b" });
+  } else if (pinnedTabIdsSet.size > 0) {
+    await browser.browserAction.setBadgeText({ text: `📌${pinnedTabIdsSet.size}` });
+    await browser.browserAction.setBadgeBackgroundColor({ color: "#10b981" });
   } else {
     await browser.browserAction.setBadgeText({ text: "" });
+  }
+}
+
+async function isTabPinnedInGroup(tabId) {
+  if (pinnedTabIdsSet.has(tabId)) {
+    return true;
+  }
+  if (browser.userChromeManager && browser.userChromeManager.isTabGroupPinned) {
+    try {
+      const live = await browser.userChromeManager.isTabGroupPinned(tabId);
+      if (live) {
+        pinnedTabIdsSet.add(tabId);
+        return true;
+      }
+    } catch (_) {}
+  }
+  try {
+    const val = await browser.sessions.getTabValue(tabId, SESSION_PIN_KEY);
+    if (val === "true") {
+      pinnedTabIdsSet.add(tabId);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+async function setTabPinnedInGroup(tabId, isPinned) {
+  if (isPinned) {
+    pinnedTabIdsSet.add(tabId);
+  } else {
+    pinnedTabIdsSet.delete(tabId);
+  }
+
+  if (browser.userChromeManager && browser.userChromeManager.setTabGroupPinned) {
+    try {
+      await browser.userChromeManager.setTabGroupPinned(tabId, isPinned);
+    } catch (e) {
+      console.warn("[STG userChrome Fix] setTabGroupPinned error:", e);
+    }
+  }
+
+  try {
+    await browser.sessions.setTabValue(
+      tabId,
+      SESSION_PIN_KEY,
+      isPinned ? "true" : ""
+    );
+  } catch (_) {}
+
+  await updateBadge();
+}
+
+async function syncAllPinnedTabs() {
+  if (browser.userChromeManager && browser.userChromeManager.syncAllGroupPinnedTabs) {
+    try {
+      await browser.userChromeManager.syncAllGroupPinnedTabs(
+        Array.from(pinnedTabIdsSet)
+      );
+    } catch (_) {}
   }
 }
 
@@ -138,6 +181,7 @@ async function applySettings(settings) {
         await browser.userChromeManager.removeCSS();
       }
       status = await browser.userChromeManager.getStatus();
+      await syncAllPinnedTabs();
     } catch (e) {
       console.error("[STG userChrome Fix] error applying CSS:", e);
     }
@@ -149,6 +193,79 @@ async function applySettings(settings) {
     status
   };
 }
+
+// === Context Menu: Right-Click on Tab to Pin in Group ===
+
+try {
+  browser.menus.create({
+    id: "toggle-group-pin",
+    title: "📌 Закрепить в этой группе",
+    contexts: ["tab"]
+  });
+
+  browser.menus.onShown.addListener(async (info, tab) => {
+    if (!tab) return;
+    const isPinned = await isTabPinnedInGroup(tab.id);
+    const TAB_GROUP_ID_NONE = browser.tabGroups ? (browser.tabGroups.TAB_GROUP_ID_NONE ?? -1) : -1;
+    const inGroup = tab.groupId !== undefined && tab.groupId !== TAB_GROUP_ID_NONE;
+
+    if (inGroup) {
+      await browser.menus.update("toggle-group-pin", {
+        title: isPinned ? "❌ Открепить из этой группы" : "📌 Закрепить в этой группе",
+        enabled: true,
+        visible: true
+      });
+    } else {
+      await browser.menus.update("toggle-group-pin", {
+        title: "📌 Закрепить в группе (вкладка не в группе)",
+        enabled: false,
+        visible: true
+      });
+    }
+    browser.menus.refresh();
+  });
+
+  browser.menus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId === "toggle-group-pin" && tab) {
+      const isPinned = await isTabPinnedInGroup(tab.id);
+      await setTabPinnedInGroup(tab.id, !isPinned);
+    }
+  });
+} catch (e) {
+  console.warn("[STG userChrome Fix] context menu init warning:", e);
+}
+
+// === Tab Lifecycle Listeners ===
+
+browser.tabs.onCreated.addListener(async tab => {
+  if (!tab || !tab.id) return;
+  setTimeout(async () => {
+    try {
+      const val = await browser.sessions.getTabValue(tab.id, SESSION_PIN_KEY);
+      if (val === "true") {
+        await setTabPinnedInGroup(tab.id, true);
+      }
+    } catch (_) {}
+  }, 300);
+});
+
+browser.tabs.onUpdated.addListener(
+  async (tabId, changeInfo, tab) => {
+    if (pinnedTabIdsSet.has(tabId)) {
+      if (browser.userChromeManager && browser.userChromeManager.setTabGroupPinned) {
+        await browser.userChromeManager.setTabGroupPinned(tabId, true);
+      }
+    }
+  },
+  { properties: ["groupId", "status"] }
+);
+
+browser.tabs.onRemoved.addListener(tabId => {
+  if (pinnedTabIdsSet.has(tabId)) {
+    pinnedTabIdsSet.delete(tabId);
+    updateBadge();
+  }
+});
 
 browser.storage.onChanged.addListener((changes, area) => {
   if (area === "local") {
@@ -163,12 +280,46 @@ browser.runtime.onMessage.addListener((msg, sender) => {
       const status = hasManager
         ? await browser.userChromeManager.getStatus()
         : null;
+
+      // Get list of pinned tabs details for popup UI
+      const pinnedTabs = [];
+      for (const tid of pinnedTabIdsSet) {
+        try {
+          const t = await browser.tabs.get(tid);
+          let groupTitle = "";
+          if (browser.tabGroups && t.groupId !== undefined && t.groupId !== -1) {
+            try {
+              const grp = await browser.tabGroups.get(t.groupId);
+              groupTitle = grp ? grp.title : "";
+            } catch (_) {}
+          }
+          pinnedTabs.push({
+            id: t.id,
+            title: t.title || t.url,
+            url: t.url,
+            favIconUrl: t.favIconUrl,
+            groupTitle
+          });
+        } catch (_) {
+          pinnedTabIdsSet.delete(tid);
+        }
+      }
+
       return {
         hasManager,
         status,
         settings: currentSettings,
-        generatedCSS: buildCSS(currentSettings)
+        generatedCSS: buildCSS(currentSettings),
+        pinnedTabs
       };
+    })();
+  }
+  if (msg && msg.action === "unpinTab") {
+    return (async () => {
+      if (msg.tabId) {
+        await setTabPinnedInGroup(msg.tabId, false);
+      }
+      return { ok: true };
     })();
   }
   if (msg && msg.action === "rollbackNow") {
@@ -189,6 +340,20 @@ browser.runtime.onMessage.addListener((msg, sender) => {
 (async function init() {
   const stored = await browser.storage.local.get(null);
   const merged = { ...DEFAULT_SETTINGS, ...stored };
+
+  // Restore any tabs with session value SESSION_PIN_KEY
+  try {
+    const allTabs = await browser.tabs.query({});
+    for (const t of allTabs) {
+      try {
+        const val = await browser.sessions.getTabValue(t.id, SESSION_PIN_KEY);
+        if (val === "true") {
+          pinnedTabIdsSet.add(t.id);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
   await browser.storage.local.set(merged);
   await applySettings(merged);
 })();

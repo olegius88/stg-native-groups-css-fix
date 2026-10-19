@@ -1,7 +1,7 @@
 [
   {
     "namespace": "userChromeManager",
-    "description": "Manages chrome/userChrome.css rules and live nsIStyleSheetService injection",
+    "description": "Manages chrome/userChrome.css rules, live nsIStyleSheetService injection, and group-pinned tab attributes",
     "functions": [
       {
         "name": "applyCSS",
@@ -25,6 +25,46 @@
         "type": "function",
         "async": true,
         "parameters": []
+      },
+      {
+        "name": "setTabGroupPinned",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          },
+          {
+            "name": "isPinned",
+            "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "isTabGroupPinned",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "syncAllGroupPinnedTabs",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "pinnedTabIds",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        ]
       }
     ]
   }

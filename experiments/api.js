@@ -1,6 +1,6 @@
 "use strict";
 
-/* global ExtensionAPI, Cc, Ci, Services, IOUtils, PathUtils */
+/* global ExtensionAPI, Cc, Ci, Services, IOUtils, PathUtils, ChromeUtils */
 
 const BEGIN_MARKER = "/* === BEGIN STG-NATIVE-GROUPS-CSS-FIX === */";
 const END_MARKER = "/* === END STG-NATIVE-GROUPS-CSS-FIX === */";
@@ -11,6 +11,22 @@ function getStyleSheetService() {
   return Cc["@mozilla.org/content/style-sheet-service;1"].getService(
     Ci.nsIStyleSheetService
   );
+}
+
+function getSessionStore() {
+  try {
+    return ChromeUtils.importESModule(
+      "resource:///modules/sessionstore/SessionStore.sys.mjs"
+    ).SessionStore;
+  } catch (_) {
+    try {
+      return Cc["@mozilla.org/browser/sessionstore;1"]?.getService(
+        Ci.nsISessionStore
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 function unregisterLiveSheet() {
@@ -112,15 +128,31 @@ async function removeFromUserChromeFile() {
   return { removed: true, userChromePath };
 }
 
+function findNativeTab(context, tabId) {
+  try {
+    const tabObj = context.extension.tabManager.get(tabId);
+    if (tabObj && tabObj.nativeTab) {
+      return tabObj.nativeTab;
+    }
+  } catch (_) {}
+  return null;
+}
+
 this.userChromeManager = class extends ExtensionAPI {
   onShutdown(isAppShutdown) {
-    // If Firefox itself is shutting down, keep userChrome.css intact on disk for next startup.
-    // If the user disables or uninstalls the extension (!isAppShutdown), roll back both memory & userChrome.css!
     unregisterLiveSheet();
     if (!isAppShutdown) {
       removeFromUserChromeFile().catch(e =>
         console.error("[STG userChrome Fix] rollback onShutdown error:", e)
       );
+      // Remove group-pinned attribute from all tabs if extension uninstalled
+      for (const win of Services.wm.getEnumerator("navigator:browser")) {
+        if (win.gBrowser) {
+          for (const tab of win.gBrowser.tabs) {
+            tab.removeAttribute("group-pinned");
+          }
+        }
+      }
     }
   }
 
@@ -172,6 +204,52 @@ this.userChromeManager = class extends ExtensionAPI {
             liveActive,
             prefEnabled
           };
+        },
+        async setTabGroupPinned(tabId, isPinned) {
+          const nativeTab = findNativeTab(context, tabId);
+          if (nativeTab) {
+            if (isPinned) {
+              nativeTab.setAttribute("group-pinned", "true");
+            } else {
+              nativeTab.removeAttribute("group-pinned");
+            }
+            const ss = getSessionStore();
+            if (ss && ss.setCustomTabValue) {
+              try {
+                ss.setCustomTabValue(
+                  nativeTab,
+                  "group-pinned",
+                  isPinned ? "true" : ""
+                );
+              } catch (_) {}
+            }
+            return true;
+          }
+          return false;
+        },
+        async isTabGroupPinned(tabId) {
+          const nativeTab = findNativeTab(context, tabId);
+          if (nativeTab) {
+            return nativeTab.getAttribute("group-pinned") === "true";
+          }
+          return false;
+        },
+        async syncAllGroupPinnedTabs(pinnedTabIds) {
+          const set = new Set(pinnedTabIds || []);
+          for (const win of Services.wm.getEnumerator("navigator:browser")) {
+            if (win.gBrowser) {
+              for (const tab of win.gBrowser.tabs) {
+                const wrapper = context.extension.tabManager.getWrapper(tab);
+                const id = wrapper ? wrapper.id : null;
+                if (id && set.has(id)) {
+                  tab.setAttribute("group-pinned", "true");
+                } else if (id) {
+                  tab.removeAttribute("group-pinned");
+                }
+              }
+            }
+          }
+          return true;
         }
       }
     };
