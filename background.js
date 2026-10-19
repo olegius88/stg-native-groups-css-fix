@@ -197,38 +197,48 @@ async function applySettings(settings) {
 // === Context Menu: Right-Click on Tab to Pin in Group ===
 
 try {
-  browser.menus.create({
-    id: "toggle-group-pin",
-    title: "📌 Закрепить в этой группе",
-    contexts: ["tab"]
+  browser.menus.removeAll().then(() => {
+    browser.menus.create({
+      id: "toggle-group-pin",
+      title: "📌 Закрепить в этой группе",
+      contexts: ["tab"]
+    });
   });
 
   browser.menus.onShown.addListener(async (info, tab) => {
-    if (!tab) return;
-    const isPinned = await isTabPinnedInGroup(tab.id);
-    const TAB_GROUP_ID_NONE = browser.tabGroups ? (browser.tabGroups.TAB_GROUP_ID_NONE ?? -1) : -1;
-    const inGroup = tab.groupId !== undefined && tab.groupId !== TAB_GROUP_ID_NONE;
+    try {
+      if (!tab) return;
+      const isPinned = await isTabPinnedInGroup(tab.id);
+      const TAB_GROUP_ID_NONE = browser.tabGroups ? (browser.tabGroups.TAB_GROUP_ID_NONE ?? -1) : -1;
+      const inGroup = tab.groupId !== undefined && tab.groupId !== null && tab.groupId !== TAB_GROUP_ID_NONE;
 
-    if (inGroup) {
-      await browser.menus.update("toggle-group-pin", {
-        title: isPinned ? "❌ Открепить из этой группы" : "📌 Закрепить в этой группе",
-        enabled: true,
-        visible: true
-      });
-    } else {
-      await browser.menus.update("toggle-group-pin", {
-        title: "📌 Закрепить в группе (вкладка не в группе)",
-        enabled: false,
-        visible: true
-      });
+      if (inGroup) {
+        await browser.menus.update("toggle-group-pin", {
+          title: isPinned ? "❌ Открепить из этой группы" : "📌 Закрепить в этой группе",
+          enabled: true,
+          visible: true
+        });
+      } else {
+        await browser.menus.update("toggle-group-pin", {
+          title: "📌 Закрепить в группе (вкладка не в группе)",
+          enabled: false,
+          visible: true
+        });
+      }
+      browser.menus.refresh();
+    } catch (err) {
+      console.warn("[STG userChrome Fix] onShown error:", err);
     }
-    browser.menus.refresh();
   });
 
   browser.menus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId === "toggle-group-pin" && tab) {
-      const isPinned = await isTabPinnedInGroup(tab.id);
-      await setTabPinnedInGroup(tab.id, !isPinned);
+    try {
+      if (info.menuItemId === "toggle-group-pin" && tab) {
+        const isPinned = await isTabPinnedInGroup(tab.id);
+        await setTabPinnedInGroup(tab.id, !isPinned);
+      }
+    } catch (err) {
+      console.warn("[STG userChrome Fix] onClicked error:", err);
     }
   });
 } catch (e) {

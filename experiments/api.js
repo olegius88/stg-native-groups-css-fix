@@ -131,8 +131,21 @@ async function removeFromUserChromeFile() {
 function findNativeTab(context, tabId) {
   try {
     const tabObj = context.extension.tabManager.get(tabId);
-    if (tabObj && tabObj.nativeTab) {
-      return tabObj.nativeTab;
+    if (tabObj) {
+      if (tabObj.nativeTab) return tabObj.nativeTab;
+      if (tabObj._nativeTab) return tabObj._nativeTab;
+    }
+  } catch (_) {}
+  try {
+    for (const win of Services.wm.getEnumerator("navigator:browser")) {
+      if (win.gBrowser) {
+        for (const tab of win.gBrowser.tabs) {
+          const wrapper = context.extension.tabManager.getWrapper(tab);
+          if (wrapper && wrapper.id === tabId) {
+            return tab;
+          }
+        }
+      }
     }
   } catch (_) {}
   return null;
