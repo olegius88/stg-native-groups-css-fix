@@ -23,8 +23,8 @@ function buildCSS(settings) {
   const rules = [];
 
   if (settings.hideEmptyGroupHeaders) {
-    rules.push(`/* Скрывать пустую плашку (синий квадрат) и счетчик нативной группы Firefox, когда все вкладки группы скрыты через Simple Tab Groups */
-#tabbrowser-tabs tab-group:not(:has(tab.tabbrowser-tab:not([hidden]))) > :is(.tab-group-label-container, .tab-group-overflow-count-container) {
+    rules.push(`/* Полностью скрывать нативную группу Firefox (плашку, счетчик, линию), когда все вкладки группы скрыты через Simple Tab Groups */
+#tabbrowser-tabs tab-group:not(:has(tab.tabbrowser-tab:not([hidden]))) {
     display: none !important;
 }`);
   }
@@ -32,30 +32,30 @@ function buildCSS(settings) {
   if (settings.pinInGroupEnabled) {
     if (settings.pinInGroupCompact) {
       rules.push(`/* Закрепленные вручную вкладки внутри свернутых групп (компактный вид: фавиконка) */
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"] {
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) {
     display: flex !important;
     visibility: visible !important;
 }
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([selected]) {
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]):not([selected]) {
     max-width: 44px !important;
     min-width: 40px !important;
     padding-inline: 4px !important;
 }
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([selected]) .tab-label-container {
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]):not([selected]) .tab-label-container {
     display: none !important;
 }
-#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"] .tab-icon-image {
+#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) .tab-icon-image {
     outline: 2px solid #10b981 !important;
     outline-offset: 1px !important;
     border-radius: 4px !important;
 }`);
     } else {
       rules.push(`/* Закрепленные вручную вкладки внутри свернутых групп (полный размер) */
-#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"] {
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) {
     display: flex !important;
     visibility: visible !important;
 }
-#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"] .tab-icon-image {
+#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) .tab-icon-image {
     outline: 2px solid #10b981 !important;
     outline-offset: 1px !important;
     border-radius: 4px !important;
