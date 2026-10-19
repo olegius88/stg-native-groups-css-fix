@@ -24,7 +24,40 @@
 
   <main class="content" id="main-content">
     <section class="section">
-      <div class="section-label">CSS-правила для chrome/userChrome.css</div>
+      <div class="section-label">📌 Закрепление вкладок внутри групп</div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="pinFirstTabInCollapsedGroup">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Закреплять вкладку внутри группы (не прятать неактивную)</div>
+          <div class="checkbox-desc">Когда группа свернута, первая вкладка группы остается на панели задач и не пропадает при переходе на другие вкладки</div>
+        </div>
+      </label>
+
+      <label class="checkbox-row sub-checkbox">
+        <input type="checkbox" id="pinFirstTabCompact">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Компактный размер закрепленной вкладки (только иконка)</div>
+          <div class="checkbox-desc">Сжимает неактивную закрепленную вкладку до размера фавиконки (как стандартная pinned tab) для экономии места</div>
+        </div>
+      </label>
+
+      <div class="input-block">
+        <label class="input-label" for="pinKeywords">Ключевые слова для закрепления по названию (через запятую):</label>
+        <input type="text" id="pinKeywords" class="text-input" placeholder="Например: Чат, sendapi">
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" id="miniIconsMode">
+        <div class="checkbox-text">
+          <div class="checkbox-title">Режим мини-иконок для всех вкладок свернутой группы</div>
+          <div class="checkbox-desc">Вместо полного скрытия сворачивает все вкладки группы в аккуратный ряд мини-значков</div>
+        </div>
+      </label>
+    </section>
+
+    <section class="section">
+      <div class="section-label">CSS-стили оформления нативных групп</div>
 
       <label class="checkbox-row">
         <input type="checkbox" id="hideEmptyGroupHeaders">

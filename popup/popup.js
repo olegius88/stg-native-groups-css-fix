@@ -2,6 +2,10 @@
 
 const ids = [
   "enabled",
+  "pinFirstTabInCollapsedGroup",
+  "pinFirstTabCompact",
+  "pinKeywords",
+  "miniIconsMode",
   "hideEmptyGroupHeaders",
   "hideOverflowCounter",
   "hideGroupLine",
@@ -10,6 +14,7 @@ const ids = [
 ];
 
 let customCssTimer = null;
+let keywordsTimer = null;
 
 function showSavedIndicator(msg = "Записано") {
   const el = document.getElementById("save-indicator");
@@ -61,8 +66,11 @@ async function refreshStatus() {
 async function saveCurrentForm() {
   const patch = {
     enabled: document.getElementById("enabled").checked,
-    hideEmptyGroupHeaders: document.getElementById("hideEmptyGroupHeaders")
-      .checked,
+    pinFirstTabInCollapsedGroup: document.getElementById("pinFirstTabInCollapsedGroup").checked,
+    pinFirstTabCompact: document.getElementById("pinFirstTabCompact").checked,
+    pinKeywords: document.getElementById("pinKeywords").value,
+    miniIconsMode: document.getElementById("miniIconsMode").checked,
+    hideEmptyGroupHeaders: document.getElementById("hideEmptyGroupHeaders").checked,
     hideOverflowCounter: document.getElementById("hideOverflowCounter").checked,
     hideGroupLine: document.getElementById("hideGroupLine").checked,
     compactLabels: document.getElementById("compactLabels").checked,
@@ -78,10 +86,12 @@ async function initPopup() {
   const s = res.settings;
 
   document.getElementById("enabled").checked = !!s.enabled;
-  document.getElementById("hideEmptyGroupHeaders").checked =
-    !!s.hideEmptyGroupHeaders;
-  document.getElementById("hideOverflowCounter").checked =
-    !!s.hideOverflowCounter;
+  document.getElementById("pinFirstTabInCollapsedGroup").checked = !!s.pinFirstTabInCollapsedGroup;
+  document.getElementById("pinFirstTabCompact").checked = !!s.pinFirstTabCompact;
+  document.getElementById("pinKeywords").value = s.pinKeywords || "";
+  document.getElementById("miniIconsMode").checked = !!s.miniIconsMode;
+  document.getElementById("hideEmptyGroupHeaders").checked = !!s.hideEmptyGroupHeaders;
+  document.getElementById("hideOverflowCounter").checked = !!s.hideOverflowCounter;
   document.getElementById("hideGroupLine").checked = !!s.hideGroupLine;
   document.getElementById("compactLabels").checked = !!s.compactLabels;
   document.getElementById("customCSS").value = s.customCSS || "";
@@ -94,6 +104,11 @@ async function initPopup() {
       el.addEventListener("input", () => {
         clearTimeout(customCssTimer);
         customCssTimer = setTimeout(saveCurrentForm, 350);
+      });
+    } else if (id === "pinKeywords") {
+      el.addEventListener("input", () => {
+        clearTimeout(keywordsTimer);
+        keywordsTimer = setTimeout(saveCurrentForm, 350);
       });
     } else {
       el.addEventListener("change", saveCurrentForm);
