@@ -82,6 +82,20 @@ foreach ($prof in $profiles) {
         }
     }
 
+    # Cleanup leftovers from previous installer versions (possibly broken builds)
+    $leftovers = @(
+        (Join-Path $extDir "staged\$addonId.xpi"),
+        (Join-Path $extDir "$addonId.xpi.bak")
+    )
+    foreach ($lf in $leftovers) {
+        if (Test-Path $lf) {
+            try {
+                Remove-Item $lf -Force -ErrorAction Stop
+                Write-Host "  [-] Removed leftover: $lf" -ForegroundColor Yellow
+            } catch {}
+        }
+    }
+
     $destXpi = Join-Path $extDir "$addonId.xpi"
     try {
         Copy-Item -Path $xpiSource -Destination $destXpi -Force -ErrorAction Stop
@@ -96,6 +110,51 @@ foreach ($prof in $profiles) {
             Write-Host "  [+] Updated running extension via rename-swap: $destXpi" -ForegroundColor Green
         } catch {
             Write-Host "  [!] Could not replace locked XPI: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+
+    # 3. Clean and update chrome/userChrome.css if managed block exists (purges old :first-of-type rules)
+    $chromeDir = Join-Path $prof.FullName "chrome"
+    $userChromePath = Join-Path $chromeDir "userChrome.css"
+    if (Test-Path $userChromePath) {
+        $ucContent = Get-Content $userChromePath -Raw -Encoding UTF8
+        $beginMarker = "/* === BEGIN STG-NATIVE-GROUPS-CSS-FIX === */"
+        $endMarker = "/* === END STG-NATIVE-GROUPS-CSS-FIX === */"
+        $startIdx = $ucContent.IndexOf($beginMarker)
+        $endIdx = $ucContent.IndexOf($endMarker)
+        if ($startIdx -ne -1 -and $endIdx -ne -1 -and $endIdx -gt $startIdx) {
+            $before = $ucContent.Substring(0, $startIdx).TrimEnd()
+            $after = $ucContent.Substring($endIdx + $endMarker.Length).TrimStart()
+            $newBlock = @"
+$beginMarker
+/* Полностью скрывать нативную группу Firefox (плашку, счетчик, линию), когда все вкладки группы скрыты через Simple Tab Groups */
+#tabbrowser-tabs tab-group:not(:has(tab.tabbrowser-tab:not([hidden]))) {
+    display: none !important;
+}
+
+/* Закрепленные вручную вкладки внутри свернутых групп (компактный вид: фавиконка) */
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) {
+    display: flex !important;
+    visibility: visible !important;
+}
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]):not([selected]) {
+    max-width: 44px !important;
+    min-width: 40px !important;
+    padding-inline: 4px !important;
+}
+#tabbrowser-tabs tab-group[collapsed] > tab.tabbrowser-tab[group-pinned="true"]:not([hidden]):not([selected]) .tab-label-container {
+    display: none !important;
+}
+#tabbrowser-tabs tab.tabbrowser-tab[group-pinned="true"]:not([hidden]) .tab-icon-image {
+    outline: 2px solid #10b981 !important;
+    outline-offset: 1px !important;
+    border-radius: 4px !important;
+}
+$endMarker
+"@
+            $finalUc = if ($before -and $after) { "$before`r`n`r`n$newBlock`r`n`r`n$after" } elseif ($before) { "$before`r`n`r`n$newBlock" } elseif ($after) { "$newBlock`r`n`r`n$after" } else { $newBlock }
+            Set-Content -Path $userChromePath -Value $finalUc -Encoding UTF8
+            Write-Host "  [+] Updated userChrome.css with clean rules (purged legacy rules)" -ForegroundColor Green
         }
     }
 }
