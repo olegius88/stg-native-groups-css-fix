@@ -65,6 +65,17 @@
             }
           }
         ]
+      },
+      {
+        "name": "setPreviewEnhancementsEnabled",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "enabled",
+            "type": "boolean"
+          }
+        ]
       }
     ]
   }

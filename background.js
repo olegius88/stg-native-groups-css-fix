@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   hideEmptyGroupHeaders: true,
   pinInGroupEnabled: true,
   pinInGroupCompact: true,
+  previewCloseButton: true,
   hideOverflowCounter: false,
   hideGroupLine: false,
   compactLabels: false,
@@ -61,6 +62,58 @@ function buildCSS(settings) {
     border-radius: 4px !important;
 }`);
     }
+  }
+
+  if (settings.previewCloseButton) {
+    rules.push(`/* Кнопка закрытия [×] и выравнивание элементов в вертикальном списке свернутой группы */
+#tabgroup-panel-content {
+    min-width: 220px !important;
+}
+#tabgroup-panel-content .group-preview-button {
+    display: flex !important;
+    align-items: center !important;
+    position: relative !important;
+    padding-inline-end: 6px !important;
+}
+#tabgroup-panel-content .group-preview-button .toolbarbutton-text {
+    flex: 1 1 auto !important;
+    text-align: start !important;
+    margin-inline-end: 8px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+#tabgroup-panel-content .group-preview-tab-close {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    box-sizing: border-box !important;
+    padding: 3px !important;
+    border-radius: 4px !important;
+    list-style-image: url("chrome://global/skin/icons/close.svg") !important;
+    -moz-context-properties: fill, fill-opacity !important;
+    fill: currentColor !important;
+    opacity: 0.65 !important;
+    cursor: pointer !important;
+    margin-inline-start: auto !important;
+    flex-shrink: 0 !important;
+    transition: opacity 0.15s ease, background-color 0.15s ease !important;
+}
+#tabgroup-panel-content .group-preview-button:hover .group-preview-tab-close {
+    opacity: 0.85 !important;
+}
+#tabgroup-panel-content .group-preview-tab-close:hover {
+    opacity: 1 !important;
+    background-color: var(--button-background-color-hover, rgba(128, 128, 128, 0.25)) !important;
+    color: #ef4444 !important;
+}
+#tabgroup-panel-content .group-preview-tab-close:active {
+    background-color: var(--button-background-color-active, rgba(128, 128, 128, 0.35)) !important;
+}`);
   }
 
   if (settings.hideOverflowCounter) {
@@ -182,6 +235,11 @@ async function applySettings(settings) {
       }
       status = await browser.userChromeManager.getStatus();
       await syncAllPinnedTabs();
+      if (browser.userChromeManager.setPreviewEnhancementsEnabled) {
+        await browser.userChromeManager.setPreviewEnhancementsEnabled(
+          currentSettings.enabled && currentSettings.previewCloseButton
+        );
+      }
     } catch (e) {
       console.error("[STG userChrome Fix] error applying CSS:", e);
     }

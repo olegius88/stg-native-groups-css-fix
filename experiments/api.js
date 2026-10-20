@@ -151,9 +151,208 @@ function findNativeTab(context, tabId) {
   return null;
 }
 
+let previewEnhancementsEnabled = true;
+const enhancedWindows = new WeakSet();
+const windowCleanupHandlers = new Map();
+
+function enhanceWindow(win) {
+  if (!win || !win.document || enhancedWindows.has(win)) return;
+  enhancedWindows.add(win);
+
+  const panel = win.document.getElementById("tabgroup-preview-panel");
+  const panelContent = win.document.getElementById("tabgroup-panel-content");
+  if (!panel || !panelContent) return;
+
+  function enhanceButtons() {
+    if (!previewEnhancementsEnabled) return;
+    try {
+      const buttons = panelContent.querySelectorAll(".group-preview-button");
+      for (const btn of buttons) {
+        if (btn.__stgEnhanced) continue;
+        btn.__stgEnhanced = true;
+
+        // 1. Right-click context menu (native tabContextMenu)
+        btn.setAttribute("context", "tabContextMenu");
+        btn.addEventListener(
+          "contextmenu",
+          (event) => {
+            if (!previewEnhancementsEnabled) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const tab = btn.tab;
+            if (!tab) return;
+            const menu = win.document.getElementById("tabContextMenu");
+            if (menu) {
+              try {
+                if (panel && panel.hidePopup) {
+                  panel.hidePopup();
+                }
+              } catch (_) {}
+              menu.triggerNode = tab;
+              menu.openPopupAtScreen(event.screenX, event.screenY, true, event);
+            }
+          },
+          true
+        );
+
+        // 2. Middle-click to close
+        btn.addEventListener(
+          "auxclick",
+          (event) => {
+            if (!previewEnhancementsEnabled) return;
+            if (event.button === 1) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (btn.tab && win.gBrowser) {
+                win.gBrowser.removeTab(btn.tab, { animate: true });
+              }
+            }
+          },
+          true
+        );
+
+        // 3. Close button [×] on the right
+        let closeBtn = btn.querySelector(".group-preview-tab-close");
+        if (!closeBtn) {
+          closeBtn = win.document.createXULElement
+            ? win.document.createXULElement("image")
+            : win.document.createElementNS(
+                "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                "image"
+              );
+
+          closeBtn.className =
+            "tab-close-button group-preview-tab-close close-icon";
+          closeBtn.setAttribute("role", "button");
+          closeBtn.setAttribute("tooltiptext", "Закрыть вкладку");
+          closeBtn.setAttribute("aria-label", "Закрыть вкладку");
+
+          const handleClose = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (btn.tab && win.gBrowser) {
+              win.gBrowser.removeTab(btn.tab, { animate: true });
+            }
+          };
+
+          closeBtn.addEventListener("click", handleClose, true);
+          closeBtn.addEventListener("mousedown", (e) => e.stopPropagation(), true);
+          closeBtn.addEventListener("command", handleClose, true);
+
+          btn.appendChild(closeBtn);
+        }
+      }
+    } catch (e) {
+      console.warn("[STG userChrome Fix] enhanceButtons error:", e);
+    }
+  }
+
+  let observer = null;
+  try {
+    observer = new win.MutationObserver(() => {
+      enhanceButtons();
+    });
+    observer.observe(panelContent, { childList: true });
+  } catch (_) {}
+
+  const onUpdated = () => enhanceButtons();
+  const onShowing = () => enhanceButtons();
+  panel.addEventListener("TabGroupPreviewUpdated", onUpdated);
+  panel.addEventListener("popupshowing", onShowing);
+
+  enhanceButtons();
+
+  windowCleanupHandlers.set(win, () => {
+    try {
+      if (observer) observer.disconnect();
+      panel.removeEventListener("TabGroupPreviewUpdated", onUpdated);
+      panel.removeEventListener("popupshowing", onShowing);
+      const closeButtons = panelContent.querySelectorAll(
+        ".group-preview-tab-close"
+      );
+      for (const cb of closeButtons) {
+        cb.remove();
+      }
+      const buttons = panelContent.querySelectorAll(".group-preview-button");
+      for (const btn of buttons) {
+        delete btn.__stgEnhanced;
+        btn.removeAttribute("context");
+      }
+    } catch (_) {}
+  });
+}
+
+const winListener = {
+  onOpenWindow(xulWin) {
+    try {
+      const win = xulWin.docShell.domWindow;
+      win.addEventListener(
+        "DOMContentLoaded",
+        () => {
+          if (win.document.readyState === "complete") {
+            enhanceWindow(win);
+          } else {
+            win.addEventListener("load", () => enhanceWindow(win), {
+              once: true
+            });
+          }
+        },
+        { once: true }
+      );
+    } catch (_) {}
+  },
+  onCloseWindow(xulWin) {
+    try {
+      const win = xulWin.docShell.domWindow;
+      const cleanup = windowCleanupHandlers.get(win);
+      if (cleanup) {
+        cleanup();
+        windowCleanupHandlers.delete(win);
+      }
+    } catch (_) {}
+  }
+};
+
+let listenerAttached = false;
+function initWindowEnhancements() {
+  try {
+    for (const win of Services.wm.getEnumerator("navigator:browser")) {
+      enhanceWindow(win);
+    }
+    if (!listenerAttached) {
+      Services.wm.addListener(winListener);
+      listenerAttached = true;
+    }
+  } catch (e) {
+    console.warn("[STG userChrome Fix] initWindowEnhancements error:", e);
+  }
+}
+
+function shutdownWindowEnhancements() {
+  try {
+    if (listenerAttached) {
+      Services.wm.removeListener(winListener);
+      listenerAttached = false;
+    }
+  } catch (_) {}
+  for (const win of Services.wm.getEnumerator("navigator:browser")) {
+    const cleanup = windowCleanupHandlers.get(win);
+    if (cleanup) {
+      cleanup();
+    }
+  }
+  windowCleanupHandlers.clear();
+}
+
 this.userChromeManager = class extends ExtensionAPI {
+  onStartup() {
+    initWindowEnhancements();
+  }
+
   onShutdown(isAppShutdown) {
     unregisterLiveSheet();
+    shutdownWindowEnhancements();
     if (!isAppShutdown) {
       removeFromUserChromeFile().catch(e =>
         console.error("[STG userChrome Fix] rollback onShutdown error:", e)
@@ -170,6 +369,7 @@ this.userChromeManager = class extends ExtensionAPI {
   }
 
   getAPI(context) {
+    initWindowEnhancements();
     return {
       userChromeManager: {
         async applyCSS(cssText) {
@@ -261,6 +461,15 @@ this.userChromeManager = class extends ExtensionAPI {
                 }
               }
             }
+          }
+          return true;
+        },
+        async setPreviewEnhancementsEnabled(enabled) {
+          previewEnhancementsEnabled = !!enabled;
+          if (previewEnhancementsEnabled) {
+            initWindowEnhancements();
+          } else {
+            shutdownWindowEnhancements();
           }
           return true;
         }

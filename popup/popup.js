@@ -4,6 +4,7 @@ const ids = [
   "enabled",
   "pinInGroupEnabled",
   "pinInGroupCompact",
+  "previewCloseButton",
   "hideEmptyGroupHeaders",
   "hideOverflowCounter",
   "hideGroupLine",
@@ -122,6 +123,7 @@ async function saveCurrentForm() {
     enabled: document.getElementById("enabled").checked,
     pinInGroupEnabled: document.getElementById("pinInGroupEnabled").checked,
     pinInGroupCompact: document.getElementById("pinInGroupCompact").checked,
+    previewCloseButton: document.getElementById("previewCloseButton").checked,
     hideEmptyGroupHeaders: document.getElementById("hideEmptyGroupHeaders").checked,
     hideOverflowCounter: document.getElementById("hideOverflowCounter").checked,
     hideGroupLine: document.getElementById("hideGroupLine").checked,
@@ -140,6 +142,7 @@ async function initPopup() {
   document.getElementById("enabled").checked = !!s.enabled;
   document.getElementById("pinInGroupEnabled").checked = !!s.pinInGroupEnabled;
   document.getElementById("pinInGroupCompact").checked = !!s.pinInGroupCompact;
+  document.getElementById("previewCloseButton").checked = s.previewCloseButton !== false;
   document.getElementById("hideEmptyGroupHeaders").checked = !!s.hideEmptyGroupHeaders;
   document.getElementById("hideOverflowCounter").checked = !!s.hideOverflowCounter;
   document.getElementById("hideGroupLine").checked = !!s.hideGroupLine;
