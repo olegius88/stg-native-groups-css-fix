@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "STG Native Tab Groups CSS Fix (userChrome)",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Автоматически прописывает CSS-исправление пустых плашек нативных групп (для STG) и опцию закрепления вкладок внутри свернутых групп в chrome/userChrome.css. При отключении откатывает свои правки.",
   "author": "Oleg",
   "homepage_url": "https://github.com/olegius88/stg-native-groups-css-fix",

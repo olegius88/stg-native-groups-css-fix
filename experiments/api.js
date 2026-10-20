@@ -152,133 +152,178 @@ function findNativeTab(context, tabId) {
 }
 
 let previewEnhancementsEnabled = true;
-const enhancedWindows = new WeakSet();
 const windowCleanupHandlers = new Map();
 
+// --- Debug log: <profile>/stg-native-groups-debug.log (keeps last session only) ---
+let debugLogPath = null;
+let debugLogChain = Promise.resolve();
+function dbg(msg) {
+  try {
+    if (!debugLogPath) {
+      debugLogPath = PathUtils.join(
+        Services.dirsvc.get("ProfD", Ci.nsIFile).path,
+        "stg-native-groups-debug.log"
+      );
+      debugLogChain = debugLogChain.then(() =>
+        IOUtils.writeUTF8(debugLogPath, "").catch(() => {})
+      );
+    }
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    debugLogChain = debugLogChain.then(() =>
+      IOUtils.writeUTF8(debugLogPath, line, { mode: "append" }).catch(() => {})
+    );
+  } catch (_) {}
+}
+dbg("api.js loaded");
+
+const CLOSE_ICON_CLASS = "group-preview-tab-close";
+
+function getEventElement(event) {
+  let node = event.originalTarget || event.target;
+  if (node && node.nodeType !== 1) node = node.parentNode;
+  return node && node.closest ? node : null;
+}
+
+function getPreviewButton(event) {
+  const el = getEventElement(event);
+  if (!el) return null;
+  const btn = el.closest(".group-preview-button");
+  if (!btn || !btn.closest("#tabgroup-preview-panel")) return null;
+  return btn;
+}
+
+function isCloseIconEvent(event) {
+  const el = getEventElement(event);
+  return !!(el && el.closest("." + CLOSE_ICON_CLASS));
+}
+
 function enhanceWindow(win) {
-  if (!win || !win.document || enhancedWindows.has(win)) return;
-  enhancedWindows.add(win);
+  if (!win || !win.document || windowCleanupHandlers.has(win)) return;
+  const doc = win.document;
+  if (doc.documentElement.getAttribute("windowtype") !== "navigator:browser") {
+    return;
+  }
 
-  const panel = win.document.getElementById("tabgroup-preview-panel");
-  const panelContent = win.document.getElementById("tabgroup-panel-content");
-  if (!panel || !panelContent) return;
+  let suppressUntil = 0;
 
-  function enhanceButtons() {
+  // Add [×] icons to already-rendered preview buttons.
+  // toolbarbutton inside a never-opened <panel> renders lazily on popupshowing,
+  // and render() bails out if the button already has foreign children, so we
+  // only decorate buttons that already contain .toolbarbutton-text.
+  function decorate() {
     if (!previewEnhancementsEnabled) return;
     try {
-      const buttons = panelContent.querySelectorAll(".group-preview-button");
-      for (const btn of buttons) {
-        if (btn.__stgEnhanced) continue;
-        btn.__stgEnhanced = true;
-
-        // 1. Right-click context menu (native tabContextMenu)
-        btn.setAttribute("context", "tabContextMenu");
-        btn.addEventListener(
-          "contextmenu",
-          (event) => {
-            if (!previewEnhancementsEnabled) return;
-            event.preventDefault();
-            event.stopPropagation();
-            const tab = btn.tab;
-            if (!tab) return;
-            const menu = win.document.getElementById("tabContextMenu");
-            if (menu) {
-              try {
-                if (panel && panel.hidePopup) {
-                  panel.hidePopup();
-                }
-              } catch (_) {}
-              menu.triggerNode = tab;
-              menu.openPopupAtScreen(event.screenX, event.screenY, true, event);
-            }
-          },
-          true
-        );
-
-        // 2. Middle-click to close
-        btn.addEventListener(
-          "auxclick",
-          (event) => {
-            if (!previewEnhancementsEnabled) return;
-            if (event.button === 1) {
-              event.preventDefault();
-              event.stopPropagation();
-              if (btn.tab && win.gBrowser) {
-                win.gBrowser.removeTab(btn.tab, { animate: true });
-              }
-            }
-          },
-          true
-        );
-
-        // 3. Close button [×] on the right
-        let closeBtn = btn.querySelector(".group-preview-tab-close");
-        if (!closeBtn) {
-          closeBtn = win.document.createXULElement
-            ? win.document.createXULElement("image")
-            : win.document.createElementNS(
-                "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-                "image"
-              );
-
-          closeBtn.className =
-            "tab-close-button group-preview-tab-close close-icon";
-          closeBtn.setAttribute("role", "button");
-          closeBtn.setAttribute("tooltiptext", "Закрыть вкладку");
-          closeBtn.setAttribute("aria-label", "Закрыть вкладку");
-
-          const handleClose = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            if (btn.tab && win.gBrowser) {
-              win.gBrowser.removeTab(btn.tab, { animate: true });
-            }
-          };
-
-          closeBtn.addEventListener("click", handleClose, true);
-          closeBtn.addEventListener("mousedown", (e) => e.stopPropagation(), true);
-          closeBtn.addEventListener("command", handleClose, true);
-
-          btn.appendChild(closeBtn);
-        }
+      const content = doc.getElementById("tabgroup-panel-content");
+      if (!content) return;
+      let added = 0;
+      for (const btn of content.querySelectorAll(".group-preview-button")) {
+        if (!btn.querySelector(":scope > .toolbarbutton-text")) continue;
+        if (btn.querySelector(":scope > ." + CLOSE_ICON_CLASS)) continue;
+        const img = doc.createXULElement("image");
+        img.className = CLOSE_ICON_CLASS;
+        img.setAttribute("tooltiptext", "Закрыть вкладку");
+        btn.appendChild(img);
+        added++;
       }
+      if (added) dbg(`decorate: added ${added} close icons`);
     } catch (e) {
-      console.warn("[STG userChrome Fix] enhanceButtons error:", e);
+      dbg("decorate error: " + e);
     }
   }
 
-  let observer = null;
-  try {
-    observer = new win.MutationObserver(() => {
-      enhanceButtons();
-    });
-    observer.observe(panelContent, { childList: true });
-  } catch (_) {}
+  function closeTab(tab) {
+    if (tab && win.gBrowser && !tab.closing) {
+      win.gBrowser.removeTab(tab, { animate: true });
+    }
+  }
 
-  const onUpdated = () => enhanceButtons();
-  const onShowing = () => enhanceButtons();
-  panel.addEventListener("TabGroupPreviewUpdated", onUpdated);
-  panel.addEventListener("popupshowing", onShowing);
+  function stop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  }
 
-  enhanceButtons();
+  const handlers = {
+    popupshown(event) {
+      const t = event.originalTarget;
+      if (t && t.id === "tabgroup-preview-panel") decorate();
+    },
+    TabGroupPreviewUpdated() {
+      decorate();
+      win.requestAnimationFrame(decorate);
+    },
+    mousedown(event) {
+      if (!previewEnhancementsEnabled || event.button !== 0) return;
+      if (!isCloseIconEvent(event)) return;
+      const btn = getPreviewButton(event);
+      if (!btn) return;
+      stop(event);
+      suppressUntil = Date.now() + 700;
+      dbg("close icon mousedown");
+      closeTab(btn.tab);
+    },
+    mouseup(event) {
+      if (!previewEnhancementsEnabled) return;
+      if (getPreviewButton(event) && (isCloseIconEvent(event) || Date.now() < suppressUntil)) {
+        stop(event);
+      }
+    },
+    click(event) {
+      if (!previewEnhancementsEnabled) return;
+      if (getPreviewButton(event) && (isCloseIconEvent(event) || Date.now() < suppressUntil)) {
+        stop(event);
+      }
+    },
+    command(event) {
+      if (!previewEnhancementsEnabled) return;
+      if (Date.now() < suppressUntil && getPreviewButton(event)) {
+        stop(event);
+      }
+    },
+    auxclick(event) {
+      if (!previewEnhancementsEnabled || event.button !== 1) return;
+      const btn = getPreviewButton(event);
+      if (!btn) return;
+      stop(event);
+      dbg("middle click close");
+      closeTab(btn.tab);
+    },
+    contextmenu(event) {
+      if (!previewEnhancementsEnabled) return;
+      const btn = getPreviewButton(event);
+      if (!btn || !btn.tab) return;
+      stop(event);
+      const menu = doc.getElementById("tabContextMenu");
+      if (!menu) return;
+      dbg("contextmenu on preview button");
+      // TabContextMenu.updateContextMenu() resolves the tab via
+      // triggerNode.tab, and triggerNode = target of the trigger event (btn).
+      try {
+        menu.openPopupAtScreen(event.screenX, event.screenY, true, event);
+      } catch (e) {
+        dbg("openPopupAtScreen error: " + e);
+      }
+      try {
+        const panel = doc.getElementById("tabgroup-preview-panel");
+        if (panel && panel.state !== "closed") panel.hidePopup();
+      } catch (_) {}
+    }
+  };
+
+  for (const [type, fn] of Object.entries(handlers)) {
+    win.addEventListener(type, fn, true);
+  }
+  decorate();
+  dbg("enhanceWindow attached: " + (doc.getElementById("tabgroup-preview-panel") ? "panel found" : "panel NOT found"));
 
   windowCleanupHandlers.set(win, () => {
+    for (const [type, fn] of Object.entries(handlers)) {
+      try {
+        win.removeEventListener(type, fn, true);
+      } catch (_) {}
+    }
     try {
-      if (observer) observer.disconnect();
-      panel.removeEventListener("TabGroupPreviewUpdated", onUpdated);
-      panel.removeEventListener("popupshowing", onShowing);
-      const closeButtons = panelContent.querySelectorAll(
-        ".group-preview-tab-close"
-      );
-      for (const cb of closeButtons) {
-        cb.remove();
-      }
-      const buttons = panelContent.querySelectorAll(".group-preview-button");
-      for (const btn of buttons) {
-        delete btn.__stgEnhanced;
-        btn.removeAttribute("context");
-      }
+      for (const img of doc.querySelectorAll("." + CLOSE_ICON_CLASS)) img.remove();
     } catch (_) {}
   });
 }
@@ -287,29 +332,15 @@ const winListener = {
   onOpenWindow(xulWin) {
     try {
       const win = xulWin.docShell.domWindow;
-      win.addEventListener(
-        "DOMContentLoaded",
-        () => {
-          if (win.document.readyState === "complete") {
-            enhanceWindow(win);
-          } else {
-            win.addEventListener("load", () => enhanceWindow(win), {
-              once: true
-            });
-          }
-        },
-        { once: true }
-      );
+      win.addEventListener("load", () => enhanceWindow(win), { once: true });
     } catch (_) {}
   },
   onCloseWindow(xulWin) {
     try {
       const win = xulWin.docShell.domWindow;
       const cleanup = windowCleanupHandlers.get(win);
-      if (cleanup) {
-        cleanup();
-        windowCleanupHandlers.delete(win);
-      }
+      if (cleanup) cleanup();
+      windowCleanupHandlers.delete(win);
     } catch (_) {}
   }
 };
@@ -325,7 +356,7 @@ function initWindowEnhancements() {
       listenerAttached = true;
     }
   } catch (e) {
-    console.warn("[STG userChrome Fix] initWindowEnhancements error:", e);
+    dbg("initWindowEnhancements error: " + e);
   }
 }
 
@@ -336,11 +367,10 @@ function shutdownWindowEnhancements() {
       listenerAttached = false;
     }
   } catch (_) {}
-  for (const win of Services.wm.getEnumerator("navigator:browser")) {
-    const cleanup = windowCleanupHandlers.get(win);
-    if (cleanup) {
+  for (const cleanup of windowCleanupHandlers.values()) {
+    try {
       cleanup();
-    }
+    } catch (_) {}
   }
   windowCleanupHandlers.clear();
 }
@@ -369,6 +399,7 @@ this.userChromeManager = class extends ExtensionAPI {
   }
 
   getAPI(context) {
+    dbg("getAPI called");
     initWindowEnhancements();
     return {
       userChromeManager: {
@@ -466,6 +497,7 @@ this.userChromeManager = class extends ExtensionAPI {
         },
         async setPreviewEnhancementsEnabled(enabled) {
           previewEnhancementsEnabled = !!enabled;
+          dbg("setPreviewEnhancementsEnabled(" + previewEnhancementsEnabled + ")");
           if (previewEnhancementsEnabled) {
             initWindowEnhancements();
           } else {
